@@ -1233,8 +1233,6 @@ void setup() {
     Serial.println();
     Serial.println("===== LoRa Startup =====");
 
-    sendLoRaPacket("<STATUS?>");
-
     Serial2.println("AT");
     delay(200);
 
