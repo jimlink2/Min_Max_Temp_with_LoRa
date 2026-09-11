@@ -43,6 +43,9 @@ String loRaAccum = "";
 uint32_t outdoorUptimeSec = 0;
 unsigned long lastOutdoorPacketMillis = 0;
 uint32_t outUptimeSec = 0;
+String loRaLine = "";
+unsigned long lastStatusRequest = 0;
+
 
 // Menu index
 int menuIndex = 0;
@@ -1053,6 +1056,20 @@ float dewPointF(float tempF, float hum) {
     return dewC * 9.0 / 5.0 + 32.0;
 }
 
+void sendLoRaPacket(const String& payload)
+{
+    String cmd =
+        "AT+SEND=0," +
+        String(payload.length()) +
+        "," +
+        payload;
+
+    Serial2.println(cmd);
+
+    Serial.print("Sent LoRa packet: ");
+    Serial.println(payload);
+}
+
 void parseLoRaPacket(const String &payload) {
 
     Serial.print("Parsing payload: ");
@@ -1140,7 +1157,16 @@ String readFullLoRaLine() {
     return line;
 }
 
-void processLoRaPayload(const String &line) {
+void processLoRaPayload(const String &line)
+{
+    // STATUS packet
+    if (line.indexOf("<STATUS>") >= 0)
+    {
+        Serial.println("Received STATUS response");
+        Serial.println(line);
+
+        return;
+    }
 
     int start = line.indexOf("<OUT>");
     int end   = line.indexOf("</OUT>");
@@ -1162,8 +1188,6 @@ void processLoRaPayload(const String &line) {
 
     parseLoRaPacket(payload);
 }
-
-String loRaLine = "";
 
 void handleLoRaSerial2() {
 
@@ -1208,6 +1232,8 @@ void setup() {
     Serial2.begin(115200);
     Serial.println();
     Serial.println("===== LoRa Startup =====");
+
+    sendLoRaPacket("<STATUS?>");
 
     Serial2.println("AT");
     delay(200);
@@ -1452,6 +1478,16 @@ void loop() {
         }
 
         outdoorDataStale = true;
+    }
+
+    // Ask for status only if we've been stale for a while
+    if ((millis() - lastLoRaUpdate > 30000UL) &&
+        (millis() - lastStatusRequest > 60000UL))
+    {
+        sendLoRaPacket("<STATUS?>");
+        lastStatusRequest = millis();
+
+        Serial.println("Requesting outdoor status...");
     }
 
     int b = readButton();
