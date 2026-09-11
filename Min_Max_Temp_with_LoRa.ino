@@ -40,6 +40,9 @@ bool outdoorDataStale = true;
 String loRaBuffer;
 bool   loRaInPacket = false;
 String loRaAccum = "";
+uint32_t outdoorUptimeSec = 0;
+unsigned long lastOutdoorPacketMillis = 0;
+uint32_t outUptimeSec = 0;
 
 // Menu index
 int menuIndex = 0;
@@ -1063,8 +1066,9 @@ void parseLoRaPacket(const String &payload) {
     int p3 = payload.indexOf(',', p2 + 1);
     int p4 = payload.indexOf(',', p3 + 1);
     int p5 = payload.indexOf(',', p4 + 1);
+    int p6 = payload.indexOf(',', p5 + 1);
 
-    if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0 || p5 < 0) {
+    if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0 || p5 < 0 || p6 < 0) {
         Serial.println("Bad packet format");
         return;
     }
@@ -1085,12 +1089,26 @@ void parseLoRaPacket(const String &payload) {
         payload.substring(p4 + 1, p5).toFloat();
 
     outRainTips =
-        payload.substring(p5 + 1).toInt();
+        payload.substring(p5 + 1, p6).toInt();
+
+    outUptimeSec =
+        payload.substring(p6 + 1).toInt();
+
+    Serial.println();
+    Serial.print("Outdoor Uptime: ");
+    Serial.print(outUptimeSec);
+    Serial.println(" sec");
+
+    Serial.print("Packet Age: ");
+    Serial.print((millis() - lastOutdoorPacketMillis) / 1000);
+    Serial.println(" sec");
+    Serial.println();
 
     Serial.println("*** Outdoor data updated ***");
 
     lastOutdoorData = millis();
     lastLoRaUpdate = millis();
+    lastOutdoorPacketMillis = millis();
 
     if (outdoorDataStale) {
         Serial.println("*** LoRa communication restored ***");
