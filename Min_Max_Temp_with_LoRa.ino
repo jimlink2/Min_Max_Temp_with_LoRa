@@ -583,7 +583,7 @@ void showButtonTest(int b) {
 }
 
 int settingsIndex = 0;
-const int settingsCount = 6;
+const int settingsCount = 7;
 
 void showSettingsMenu() {
     lcd.clear();
@@ -597,6 +597,7 @@ void showSettingsMenu() {
     if (settingsIndex == 3) lcd.print(">Reset Rain");
     if (settingsIndex == 4) lcd.print(">Toggle Backlite");
     if (settingsIndex == 5) lcd.print(">Set Altitude");
+    if (settingsIndex == 6) lcd.print(">Reboot Outdoor");
 }
 
 void resetMinMax() {
@@ -1168,6 +1169,14 @@ void processLoRaPayload(const String &line)
         return;
     }
 
+    if (line.indexOf("<REBOOTING>") >= 0)
+    {
+        Serial.println();
+        Serial.println("Outdoor node is rebooting");
+        Serial.println();
+        return;
+    }
+
     int start = line.indexOf("<OUT>");
     int end   = line.indexOf("</OUT>");
 
@@ -1447,6 +1456,13 @@ void sendWeatherPacketToESP32S3() {
     Serial1.println();
 }
 
+void requestOutdoorReboot()
+{
+    sendLoRaPacket("<REBOOT>");
+
+    Serial.println("Sent outdoor reboot request");
+}
+
 void loop() {
 
     handleLoRaSerial2();
@@ -1612,6 +1628,13 @@ void loop() {
                     if (settingsIndex == 3) { resetRain(); }
                     if (settingsIndex == 4) { toggleBacklight(); lcd.clear(); lcd.print(backlightOn ? "Backlight ON" : "Backlight OFF"); }
                     if (settingsIndex == 5) editAltitude();
+                    if (settingsIndex == 6) {
+                        requestOutdoorReboot();
+                        lcd.clear();
+                        lcd.print("Outdoor");
+                        lcd.setCursor(0, 1);
+                        lcd.print("Reboot Sent");
+                    }
                 }
 
                 if (b == 3) {
