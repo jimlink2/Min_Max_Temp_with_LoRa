@@ -103,7 +103,7 @@ bool blockingMaxTemp = false;
 
 const int suppressStartHour = 16;
 const int suppressStartMinute = 0;
-const int suppressEndHour = 19;
+const int suppressEndHour = 18;
 const int suppressEndMinute = 0;
 
 bool suppressingTemp = false;
