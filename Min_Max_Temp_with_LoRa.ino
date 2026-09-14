@@ -46,7 +46,6 @@ uint32_t outUptimeSec = 0;
 String loRaLine = "";
 unsigned long lastStatusRequest = 0;
 
-
 // Menu index
 int menuIndex = 0;
 unsigned long lastRefresh = 0;
@@ -1085,7 +1084,7 @@ void parseLoRaPacket(const String &payload) {
     int p4 = payload.indexOf(',', p3 + 1);
     int p5 = payload.indexOf(',', p4 + 1);
     int p6 = payload.indexOf(',', p5 + 1);
-
+    
     if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0 || p5 < 0 || p6 < 0) {
         Serial.println("Bad packet format");
         return;
