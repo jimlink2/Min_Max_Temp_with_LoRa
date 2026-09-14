@@ -1072,6 +1072,10 @@ void sendLoRaPacket(const String& payload)
 
 void parseLoRaPacket(const String &payload) {
 
+    // The anemometer is reporting about 4 x the local winds.
+    // Let's divide by a factor of, say, 4...
+    const int windFactor = 4;
+
     Serial.print("Parsing payload: ");
     Serial.println(payload);
 
@@ -1092,9 +1096,13 @@ void parseLoRaPacket(const String &payload) {
 
     outWindSpeedMPH =
         payload.substring(0, p1).toFloat();
+    // Apply the fudge factor:
+    outWindSpeedMPH = outWindSpeedMPH / windFactor;
 
     outWindGustMPH =
         payload.substring(p1 + 1, p2).toFloat();
+    // Apply the fudge factor:
+    outWindGustMPH = outWindGustMPH / windFactor;
 
     outWindDirDeg =
         payload.substring(p2 + 1, p3).toInt();
