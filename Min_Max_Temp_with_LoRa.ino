@@ -52,9 +52,9 @@ unsigned long lastRefresh = 0;
 
 enum MenuId {
     MENU_SUPER,
+    MENU_WIND,
     MENU_CLOCK,
     MENU_PRESSURE,
-    MENU_WIND,
     MENU_RAIN,
     MENU_MINMAX_TEMP,
     MENU_MINMAX_HUM,
@@ -66,9 +66,9 @@ enum MenuId {
 };
 
 const char menu_0[] PROGMEM = "Super Screen";
-const char menu_1[] PROGMEM = "Clock";
-const char menu_2[] PROGMEM = "Pressure";
-const char menu_3[] PROGMEM = "Wind";
+const char menu_1[] PROGMEM = "Wind";
+const char menu_2[] PROGMEM = "Clock";
+const char menu_3[] PROGMEM = "Pressure";
 const char menu_4[] PROGMEM = "Rain";
 const char menu_5[] PROGMEM = "Min/Max Temp";
 const char menu_6[] PROGMEM = "Min/Max Hum";
