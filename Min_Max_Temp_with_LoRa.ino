@@ -1207,31 +1207,30 @@ void processLoRaPayload(const String &line)
 
 void handleLoRaSerial2() {
 
-    while (Serial2.available()) {
+    while (Serial2.available())
+    {
+        char c = Serial2.read();
 
         lastLoRaChar = millis();
 
-        char c = Serial2.read();
+        loRaLine += c;
 
-        if (c == '\r')
-            continue;
+        int startPos = loRaLine.indexOf("<OUT>");
+        int endPos   = loRaLine.indexOf("</OUT>");
 
-        if (c == '\n') {
+        if (startPos >= 0 && endPos >= 0)
+        {
+            String packet =
+                loRaLine.substring(startPos, endPos + 6);
 
-            if (loRaLine.startsWith("+RCV=")) {
+            Serial.println();
+            Serial.println("===== COMPLETE RYLR LINE =====");
+            Serial.println(packet);
+            Serial.println("==============================");
 
-                Serial.println();
-                Serial.println("===== COMPLETE RYLR LINE =====");
-                Serial.println(loRaLine);
-                Serial.println("==============================");
+            processLoRaPayload(packet);
 
-                processLoRaPayload(loRaLine);
-            }
-
-            loRaLine = "";
-        }
-        else {
-            loRaLine += c;
+            loRaLine.remove(0, endPos + 6);
         }
     }
 }
