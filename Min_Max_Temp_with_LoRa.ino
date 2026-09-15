@@ -4,6 +4,7 @@
 #include <Adafruit_BMP280.h>
 #include <Adafruit_SHT31.h>
 #include <RTClib.h>
+#include <math.h>
 
 // Real Time Clock
 RTC_DS3231 rtc;
@@ -123,7 +124,8 @@ float maxHum  = -999;
 float minPress = 2000;
 float maxPress = 0;
 
-float altitude_m = 163.1;
+float altitude_m = 163.1f;
+const float altitude_m_fallback = 163.1f;
 
 // Min/Max timestamps
 uint8_t minTemp_h, minTemp_m, minTemp_M, minTemp_D;
@@ -673,6 +675,7 @@ void showSuperScreen() {
     float f = getBestTempF();
     float p  = bmp.readPressure() / 100.0;
     float slp = seaLevelPressure(p, altitude_m);
+    float inHg = slp * 0.02953;
 
     lcd.clear();
 
@@ -691,8 +694,10 @@ void showSuperScreen() {
     lcd.print(sourceTrunc);
 
     lcd.setCursor(0, 1);
-    lcd.print(slp, 1);
-    lcd.print("hPa");
+    // lcd.print(slp, 1);
+    // lcd.print("hPa");
+    lcd.print(inHg, 2);
+    lcd.print("inHg");
 
     if (millis() - lastOutdoorData > 10000) {
         //lcd.setCursor(0, 0);
@@ -1344,6 +1349,8 @@ void setup() {
         EEPROM.get(EE_MIN_PRESS, minPress);
         EEPROM.get(EE_MAX_PRESS, maxPress);
 
+        EEPROM.get(EE_ALTITUDE, altitude_m);
+
         EEPROM.get(EE_MIN_TEMP_TIME, minTemp_h);
         EEPROM.get(EE_MIN_TEMP_TIME+1, minTemp_m);
         EEPROM.get(EE_MIN_TEMP_TIME+2, minTemp_M);
@@ -1384,7 +1391,7 @@ void setup() {
     if (minPress < 300 || minPress > 1100) minPress = 2000;
     if (maxPress < 300 || maxPress > 1100) maxPress = 0;
 
-    if (altitude_m < 0 || altitude_m > 5000) altitude_m = 163.1;
+    if (isnan(altitude_m) || altitude_m < 0 || altitude_m > 5000) altitude_m = altitude_m_fallback;
 
     if (lastReset_h == 0 && lastReset_m == 0 && lastReset_M == 0 && lastReset_D == 0) {
         lastReset_h = 99;
