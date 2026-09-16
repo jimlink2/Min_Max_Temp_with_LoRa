@@ -680,10 +680,16 @@ void showSuperScreen() {
     lcd.clear();
 
     lcd.setCursor(0, 0);
+    if (blockingMaxTemp) {  // We're now using this blockingMaxTemp boolean to control whether or not to REDUCE
+                            // the reported temp.  We'll REPORT it, but will REDUCE it if blocking is in effect.
+        f = f * 0.98;
+    }
     lcd.print(f, 1);
     lcd.write(byte(223));
     lcd.print("F ");
-    if (blockingMaxTemp) {
+    if (blockingMaxTemp) {  // We're now using this blockingMaxTemp boolean to control whether or not to REDUCE
+                            // the reported temp.  We'll REPORT it, but will REDUCE it if blocking is in effect,
+                            // and still put '*' to let us know it's during those hours.
         lcd.print("* ");
     }
     lcd.print(h, 0);
