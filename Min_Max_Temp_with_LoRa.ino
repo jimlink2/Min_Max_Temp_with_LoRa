@@ -106,6 +106,8 @@ const int suppressStartMinute = 0;
 const int suppressEndHour = 19;
 const int suppressEndMinute = 0;
 
+float tempAdjFactor = 1.0;
+
 bool suppressingTemp = false;
 
 // Sliding baseline for trend detection
@@ -238,16 +240,26 @@ bool shouldSuppressTempMEGA(float currentTempF, int hh, int mm) {
 
     if (hh < startH || (hh == startH && mm < startM)) {
         suppressingTemp = false;
+        tempAdjFactor = 1.0;
         return false;
     }
 
     if ((hh > startH || (hh == startH && mm >= startM)) &&
         (hh < endH  || (hh == endH  && mm < endM))) {
         suppressingTemp = true;
+        // During suppressing hours, REDUCE the temp by tempAdjFactor...
+        if (hh - suppressStartHour == 2) {
+            tempAdjFactor = 0.98;
+        } else if (hh - suppressStartHour == 1) {
+            tempAdjFactor = 0.99;
+        } else {
+            tempAdjFactor = 0.995;
+        }
         return true;
     }
 
     suppressingTemp = false;
+    tempAdjFactor = 1.0;
     return false;
 }
 
@@ -682,7 +694,7 @@ void showSuperScreen() {
     lcd.setCursor(0, 0);
     if (blockingMaxTemp) {  // We're now using this blockingMaxTemp boolean to control whether or not to REDUCE
                             // the reported temp.  We'll REPORT it, but will REDUCE it if blocking is in effect.
-        f = f * 0.98;
+        f = f * tempAdjFactor;
     }
     lcd.print(f, 1);
     lcd.write(byte(223));
