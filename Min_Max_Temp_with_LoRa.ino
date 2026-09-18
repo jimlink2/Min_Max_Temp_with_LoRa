@@ -1540,8 +1540,10 @@ void loop() {
     DateTime now = rtc.now();
     static int lastDay = -1;
     if (lastDay == -1) lastDay = now.day();
+    // Reset stuff when the day changes (midnight):
     if (now.day() != lastDay) {
         resetMinMax();
+        requestOutdoorReboot();
         lastDay = now.day();
     }
 
