@@ -246,18 +246,30 @@ bool shouldSuppressTempMEGA(float currentTempF, int hh, int mm) {
 
     if ((hh > startH || (hh == startH && mm >= startM)) &&
         (hh < endH  || (hh == endH  && mm < endM))) {
+
         suppressingTemp = true;
-        // During suppressing hours, REDUCE the temp by tempAdjFactor...
-        if (hh - suppressStartHour == 2) {
-            tempAdjFactor = 0.98;
-        } else if (hh - suppressStartHour == 1) {
-            tempAdjFactor = 0.99;
-        } else {
-            tempAdjFactor = 0.995;
-        }
+
+        int startMin = suppressStartHour * 60 + suppressStartMinute;
+        int endMin   = suppressEndHour   * 60 + suppressEndMinute;
+        int nowMin   = hh * 60 + mm;
+
+        // 0.0 at start, 1.0 at end
+        float progress =
+            (float)(nowMin - startMin) /
+            (float)(endMin - startMin);
+
+        // Peak correction = 1.5%
+        float peakReduction = 0.015;
+
+        // Bell-shaped correction
+        float reduction =
+            peakReduction * sin(progress * PI);
+
+        tempAdjFactor = 1.0 - reduction;
+
         return true;
     }
-
+    
     suppressingTemp = false;
     tempAdjFactor = 1.0;
     return false;
