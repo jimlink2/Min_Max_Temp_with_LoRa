@@ -258,8 +258,8 @@ bool shouldSuppressTempMEGA(float currentTempF, int hh, int mm) {
             (float)(nowMin - startMin) /
             (float)(endMin - startMin);
 
-        // Peak correction = 1.5%
-        float peakReduction = 0.015;
+        // Peak correction
+        float peakReduction = 0.03;
 
         // Bell-shaped correction
         float reduction =
