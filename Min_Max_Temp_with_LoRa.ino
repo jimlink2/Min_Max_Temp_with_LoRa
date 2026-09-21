@@ -28,6 +28,22 @@ Adafruit_SHT31 sht31 = Adafruit_SHT31();
 float shtTemp = NAN;
 float shtHum  = NAN;
 
+// Min/Max tracking
+bool pendingRetry = false;
+unsigned long nextRetryTime = 0;
+bool blockingMaxTemp = false;
+
+const int suppressStartHour = 15;
+const int suppressStartMinute = 0;
+const int suppressEndHour = 20;
+const int suppressEndMinute = 0;
+
+float tempAdjFactor = 1.0;
+// Peak correction
+float peakReduction = 0.02;
+
+bool suppressingTemp = false;
+
 // ---------------- OUTDOOR DATA (via LoRa) ----------------
 float outWindSpeedMPH = 0.0;
 float outWindGustMPH  = 0.0;
@@ -96,22 +112,6 @@ enum UIState {
 };
 
 UIState uiState = STATE_MENU;
-
-// Min/Max tracking
-bool pendingRetry = false;
-unsigned long nextRetryTime = 0;
-bool blockingMaxTemp = false;
-
-const int suppressStartHour = 15;
-const int suppressStartMinute = 0;
-const int suppressEndHour = 20;
-const int suppressEndMinute = 0;
-
-float tempAdjFactor = 1.0;
-// Peak correction
-float peakReduction = 0.03;
-
-bool suppressingTemp = false;
 
 // Sliding baseline for trend detection
 float baselineTempF = 0.0;
