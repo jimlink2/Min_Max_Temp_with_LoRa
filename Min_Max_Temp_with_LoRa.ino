@@ -18,6 +18,7 @@ LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
 // Debug data from outside LoRa
 unsigned long lastOutdoorData = 0;
 unsigned long lastLoRaChar = 0;
+bool outdoorRebootRequested = false;
 
 // BMP280 setup
 Adafruit_BMP280 bmp;
@@ -101,12 +102,14 @@ bool pendingRetry = false;
 unsigned long nextRetryTime = 0;
 bool blockingMaxTemp = false;
 
-const int suppressStartHour = 16;
+const int suppressStartHour = 15;
 const int suppressStartMinute = 0;
-const int suppressEndHour = 19;
+const int suppressEndHour = 20;
 const int suppressEndMinute = 0;
 
 float tempAdjFactor = 1.0;
+// Peak correction
+float peakReduction = 0.03;
 
 bool suppressingTemp = false;
 
@@ -257,9 +260,6 @@ bool shouldSuppressTempMEGA(float currentTempF, int hh, int mm) {
         float progress =
             (float)(nowMin - startMin) /
             (float)(endMin - startMin);
-
-        // Peak correction
-        float peakReduction = 0.03;
 
         // Bell-shaped correction
         float reduction =
@@ -1129,6 +1129,9 @@ void parseLoRaPacket(const String &payload) {
         return;
     }
 
+    outdoorDataStale = false;
+    outdoorRebootRequested = false;   
+
     outWindSpeedMPH =
         payload.substring(0, p1).toFloat();
     // Apply the fudge factor:
@@ -1535,6 +1538,18 @@ void loop() {
         }
 
         outdoorDataStale = true;
+    }
+
+    if ((millis() - lastLoRaUpdate > 60000UL) &&
+        !outdoorRebootRequested)
+    {
+        Serial.println();
+        Serial.println("*** Outdoor node appears stuck ***");
+        Serial.println("*** Sending reboot request ***");
+
+        requestOutdoorReboot();
+
+        outdoorRebootRequested = true;
     }
 
     // Ask for status only if we've been stale for a while
