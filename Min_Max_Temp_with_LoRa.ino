@@ -19,6 +19,18 @@ LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
 unsigned long lastOutdoorData = 0;
 unsigned long lastLoRaChar = 0;
 bool outdoorRebootRequested = false;
+bool outdoorRebootPending = false;
+bool outdoorRebootAckReceived = false;
+bool waitingForOutdoorReturn = false;
+bool outdoorRebootArmed = false;
+
+unsigned long outdoorRebootSentAt = 0;
+
+uint8_t outdoorRebootAttempts = 0;
+
+const unsigned long OUTDOOR_REBOOT_TIMEOUT_MS = 20000UL;
+const uint8_t OUTDOOR_REBOOT_MAX_ATTEMPTS = 3;
+const uint32_t OUTDOOR_REBOOT_UPTIME_LIMIT = 30;
 
 // BMP280 setup
 Adafruit_BMP280 bmp;
@@ -1091,6 +1103,70 @@ float dewPointF(float tempF, float hum) {
     return dewC * 9.0 / 5.0 + 32.0;
 }
 
+void handleOutdoorReboot()
+{
+    if (!outdoorRebootPending)
+        return;
+
+    //
+    // Reboot is armed, but has not been transmitted yet.
+    // parseLoRaPacket() will send it immediately after
+    // the next valid OUT packet arrives.
+    //
+    if (outdoorRebootArmed)
+        return;
+
+    //
+    // Nothing to do unless we've already sent REBOOT
+    // and are waiting to verify that the C3 restarted.
+    //
+    if (!waitingForOutdoorReturn)
+        return;
+
+    //
+    // Give the C3 up to 10 seconds to reboot and
+    // return with a new OUT packet.
+    //
+    if (millis() - outdoorRebootSentAt <
+        OUTDOOR_REBOOT_TIMEOUT_MS)
+    {
+        return;
+    }
+
+    //
+    // We didn't receive a low-uptime OUT packet
+    // before the timeout.
+    //
+    if (outdoorRebootAttempts < OUTDOOR_REBOOT_MAX_ATTEMPTS)
+    {
+        Serial.println();
+        Serial.println("*** Reboot not verified - arming retry ***");
+        Serial.println("*** Waiting for next valid OUT packet   ***");
+        Serial.println();
+
+        //
+        // Don't transmit here.
+        // Wait for the next valid OUT packet.
+        //
+        waitingForOutdoorReturn = false;
+        outdoorRebootArmed = true;
+    }
+    else
+    {
+        Serial.println();
+        Serial.println("************************************************");
+        Serial.println("*** OUTDOOR REBOOT FAILED AFTER 3 ATTEMPTS   ***");
+        Serial.println("************************************************");
+        Serial.println();
+
+        outdoorRebootPending = false;
+        outdoorRebootAckReceived = false;
+        waitingForOutdoorReturn = false;
+        outdoorRebootArmed = false;
+        outdoorRebootAttempts = 0;
+    }
+}
+
 void sendLoRaPacket(const String& payload)
 {
     String cmd =
@@ -1129,7 +1205,6 @@ void parseLoRaPacket(const String &payload) {
         return;
     }
 
-    outdoorDataStale = false;
     outdoorRebootRequested = false;   
 
     outWindSpeedMPH =
@@ -1178,6 +1253,49 @@ void parseLoRaPacket(const String &payload) {
     }
 
     outdoorDataStale = false;
+
+    //
+    // Have we already sent at least one reboot request?
+    //
+    // If so, a low C3 uptime is definitive evidence
+    // that the outdoor C3 actually restarted.
+    //
+    if (outdoorRebootPending &&
+        outdoorRebootAttempts > 0 &&
+        outUptimeSec < OUTDOOR_REBOOT_UPTIME_LIMIT)
+    {
+        Serial.println();
+        Serial.println("************************************************");
+        Serial.println("*** Outdoor reboot VERIFIED by uptime        ***");
+        Serial.print  ("*** Outdoor uptime = ");
+        Serial.print(outUptimeSec);
+        Serial.println(" sec");
+        Serial.println("************************************************");
+        Serial.println();
+
+        outdoorRebootPending = false;
+        outdoorRebootAckReceived = false;
+        waitingForOutdoorReturn = false;
+        outdoorRebootArmed = false;
+        outdoorRebootAttempts = 0;
+
+        return;
+    }    
+
+    //
+    // A reboot request has been armed.
+    //
+    // We have JUST received and successfully parsed a valid
+    // OUT packet. Send the reboot command now while the C3
+    // has just finished transmitting.
+    //
+    if (outdoorRebootPending && outdoorRebootArmed)
+    {
+        Serial.println();
+        Serial.println("*** Valid OUT received - sending reboot now ***");
+
+        sendOutdoorRebootNow();
+    }
 }
 
 String readFullLoRaLine() {
@@ -1217,8 +1335,12 @@ void processLoRaPayload(const String &line)
     if (line.indexOf("<REBOOTING>") >= 0)
     {
         Serial.println();
-        Serial.println("Outdoor node is rebooting");
+        Serial.println("Outdoor node acknowledged reboot");
         Serial.println();
+
+        outdoorRebootAckReceived = true;
+        waitingForOutdoorReturn = true;
+
         return;
     }
 
@@ -1243,8 +1365,8 @@ void processLoRaPayload(const String &line)
     parseLoRaPacket(payload);
 }
 
-void handleLoRaSerial2() {
-
+void handleLoRaSerial2()
+{
     while (Serial2.available())
     {
         char c = Serial2.read();
@@ -1253,6 +1375,52 @@ void handleLoRaSerial2() {
 
         loRaLine += c;
 
+        //
+        // DEBUG: Print complete RYLR UART lines.
+        // This lets us see:
+        // +OK
+        // +ERR=...
+        // +ADDRESS=...
+        //
+        if (c == '\n')
+        {
+            String debugLine = loRaLine;
+            debugLine.trim();
+
+            if (debugLine.startsWith("+OK") ||
+                debugLine.startsWith("+ERR=") ||
+                debugLine.startsWith("+ADDRESS=") ||
+                debugLine.startsWith("+READY"))
+            {
+                Serial.print("RYLR response: ");
+                Serial.println(debugLine);
+            }
+        }
+
+        //
+        // Check for REBOOTING acknowledgement
+        //
+        int rebootPos = loRaLine.indexOf("<REBOOTING>");
+
+        if (rebootPos >= 0)
+        {
+            Serial.println();
+            Serial.println("===== REBOOT ACK RECEIVED =====");
+            Serial.println("<REBOOTING>");
+            Serial.println("===============================");
+            Serial.println();
+
+            processLoRaPayload("<REBOOTING>");
+
+            loRaLine.remove(
+                rebootPos,
+                String("<REBOOTING>").length()
+            );
+        }
+
+        //
+        // Normal OUT packet
+        //
         int startPos = loRaLine.indexOf("<OUT>");
         int endPos   = loRaLine.indexOf("</OUT>");
 
@@ -1270,6 +1438,17 @@ void handleLoRaSerial2() {
 
             loRaLine.remove(0, endPos + 6);
         }
+
+        //
+        // Don't allow miscellaneous RYLR responses to
+        // remain in loRaLine forever.
+        //
+        if (c == '\n' &&
+            loRaLine.indexOf("<OUT>") < 0 &&
+            loRaLine.indexOf("<REBOOTING>") < 0)
+        {
+            loRaLine = "";
+        }
     }
 }
 
@@ -1283,6 +1462,12 @@ void setup() {
     Serial.begin(9600);      // USB
     Serial1.begin(9600); 
     Serial2.begin(115200);
+
+    delay(500);
+
+    Serial.println("Querying Mega RYLR address...");
+    Serial2.println("AT+ADDRESS?");
+
     Serial.println();
     Serial.println("===== LoRa Startup =====");
 
@@ -1504,14 +1689,48 @@ void sendWeatherPacketToESP32S3() {
 
 void requestOutdoorReboot()
 {
+    if (outdoorRebootPending) {
+        Serial.println("*** Outdoor reboot already in progress ***");
+        return;
+    }
+
+    outdoorRebootPending = true;
+    outdoorRebootAckReceived = false;
+    waitingForOutdoorReturn = false;
+    outdoorRebootArmed = true;
+
+    outdoorRebootAttempts = 0;
+
+    Serial.println();
+    Serial.println("************************************************");
+    Serial.println("*** Outdoor reboot requested                 ***");
+    Serial.println("*** Waiting for next OUT packet to send it   ***");
+    Serial.println("************************************************");
+    Serial.println();
+}
+
+void sendOutdoorRebootNow()
+{
+    outdoorRebootAttempts++;
+
     sendLoRaPacket("<REBOOT>");
 
-    Serial.println("Sent outdoor reboot request");
+    outdoorRebootSentAt = millis();
+
+    waitingForOutdoorReturn = true;
+    outdoorRebootArmed = false;
+
+    Serial.println();
+    Serial.print("*** Outdoor reboot sent just after OUT - attempt ");
+    Serial.print(outdoorRebootAttempts);
+    Serial.println(" ***");
+    Serial.println();
 }
 
 void loop() {
 
     handleLoRaSerial2();
+    handleOutdoorReboot();
 
     static unsigned long lastReport = 0;
 
