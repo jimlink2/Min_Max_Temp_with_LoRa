@@ -1676,6 +1676,13 @@ void sendWeatherPacketToESP32S3() {
     Serial1.print(outRainRate, 2);
     Serial1.print(",DAILYRAIN:");
     Serial1.print(outDailyRain, 2);
+
+    Serial1.print(",RAINTIPS:");
+    Serial1.print(outRainTips);
+
+    Serial1.print(",OUTUPTIME:");
+    Serial1.print(outUptimeSec);
+
     Serial1.print(",SUPP:");
     Serial1.print(suppressingTemp ? 1 : 0);
     Serial1.print(",TIME:");
