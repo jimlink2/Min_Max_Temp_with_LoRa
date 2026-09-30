@@ -1685,12 +1685,29 @@ void sendWeatherPacketToESP32S3() {
 
     Serial1.print(",SUPP:");
     Serial1.print(suppressingTemp ? 1 : 0);
+
+    Serial1.print(",DATE:");
+    Serial1.print(dt.year());
+    Serial1.print("-");
+
+    if (dt.month() < 10) {
+        Serial1.print("0");
+    }
+    Serial1.print(dt.month());
+    Serial1.print("-");
+
+    if (dt.day() < 10) {
+        Serial1.print("0");
+    }
+    Serial1.print(dt.day());
+
     Serial1.print(",TIME:");
     Serial1.print(dt.hour());
     Serial1.print(":");
     Serial1.print(dt.minute());
     Serial1.print(":");
     Serial1.print(dt.second());
+
     Serial1.println();
 }
 
