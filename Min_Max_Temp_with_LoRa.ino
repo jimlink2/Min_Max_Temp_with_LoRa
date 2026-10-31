@@ -16,21 +16,21 @@ LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
 #define BACKLIGHT_PIN 10
 
 // Debug data from outside LoRa
-unsigned long lastOutdoorData = 0;
+unsigned long lastMastData = 0;
 unsigned long lastLoRaChar = 0;
-bool outdoorRebootRequested = false;
-bool outdoorRebootPending = false;
-bool outdoorRebootAckReceived = false;
-bool waitingForOutdoorReturn = false;
-bool outdoorRebootArmed = false;
+bool MastRebootRequested = false;
+bool MastRebootPending = false;
+bool MastRebootAckReceived = false;
+bool waitingForMastReturn = false;
+bool MastRebootArmed = false;
 
-unsigned long outdoorRebootSentAt = 0;
+unsigned long MastRebootSentAt = 0;
 
-uint8_t outdoorRebootAttempts = 0;
+uint8_t MastRebootAttempts = 0;
 
-const unsigned long OUTDOOR_REBOOT_TIMEOUT_MS = 20000UL;
-const uint8_t OUTDOOR_REBOOT_MAX_ATTEMPTS = 3;
-const uint32_t OUTDOOR_REBOOT_UPTIME_LIMIT = 30;
+const unsigned long MAST_REBOOT_TIMEOUT_MS = 20000UL;
+const uint8_t MAST_REBOOT_MAX_ATTEMPTS = 3;
+const uint32_t MAST_REBOOT_UPTIME_LIMIT = 30;
 
 // BMP280 setup
 Adafruit_BMP280 bmp;
@@ -56,7 +56,7 @@ float peakReduction = 0.02;
 
 bool suppressingTemp = false;
 
-// ---------------- OUTDOOR DATA (via LoRa) ----------------
+// ---------------- MAST DATA (via LoRa) ----------------
 float outWindSpeedMPH = 0.0;
 float outWindGustMPH  = 0.0;
 int   outWindDirDeg   = 0;
@@ -66,12 +66,12 @@ uint32_t outRainTips  = 0;
 
 // LoRa parsing state (Serial2)
 unsigned long lastLoRaUpdate = 0;
-bool outdoorDataStale = true;
+bool MastDataStale = true;
 String loRaBuffer;
 bool   loRaInPacket = false;
 String loRaAccum = "";
-uint32_t outdoorUptimeSec = 0;
-unsigned long lastOutdoorPacketMillis = 0;
+uint32_t MastUptimeSec = 0;
+unsigned long lastMastPacketMillis = 0;
 uint32_t outUptimeSec = 0;
 String loRaLine = "";
 unsigned long lastStatusRequest = 0;
@@ -634,7 +634,7 @@ void showSettingsMenu() {
     if (settingsIndex == 3) lcd.print(">Reset Rain");
     if (settingsIndex == 4) lcd.print(">Toggle Backlite");
     if (settingsIndex == 5) lcd.print(">Set Altitude");
-    if (settingsIndex == 6) lcd.print(">Reboot Outdoor");
+    if (settingsIndex == 6) lcd.print(">Reboot Mast");
 }
 
 void resetMinMax() {
@@ -741,12 +741,12 @@ void showSuperScreen() {
     lcd.print(inHg, 2);
     lcd.print("inHg");
 
-    if (millis() - lastOutdoorData > 10000) {
+    if (millis() - lastMastData > 10000) {
         //lcd.setCursor(0, 0);
-        lcd.print(" Ext NO");
+        lcd.print(" MastNO");
     } else {
         //lcd.setCursor(0, 0);
-        lcd.print(" Ext OK");
+        lcd.print(" MastOK");
     }
 
     // if (dt.hour() < 10) lcd.print('0');
@@ -1103,9 +1103,9 @@ float dewPointF(float tempF, float hum) {
     return dewC * 9.0 / 5.0 + 32.0;
 }
 
-void handleOutdoorReboot()
+void handleMastReboot()
 {
-    if (!outdoorRebootPending)
+    if (!MastRebootPending)
         return;
 
     //
@@ -1113,22 +1113,22 @@ void handleOutdoorReboot()
     // parseLoRaPacket() will send it immediately after
     // the next valid OUT packet arrives.
     //
-    if (outdoorRebootArmed)
+    if (MastRebootArmed)
         return;
 
     //
     // Nothing to do unless we've already sent REBOOT
     // and are waiting to verify that the C3 restarted.
     //
-    if (!waitingForOutdoorReturn)
+    if (!waitingForMastReturn)
         return;
 
     //
     // Give the C3 up to 10 seconds to reboot and
     // return with a new OUT packet.
     //
-    if (millis() - outdoorRebootSentAt <
-        OUTDOOR_REBOOT_TIMEOUT_MS)
+    if (millis() - MastRebootSentAt <
+        MAST_REBOOT_TIMEOUT_MS)
     {
         return;
     }
@@ -1137,7 +1137,7 @@ void handleOutdoorReboot()
     // We didn't receive a low-uptime OUT packet
     // before the timeout.
     //
-    if (outdoorRebootAttempts < OUTDOOR_REBOOT_MAX_ATTEMPTS)
+    if (MastRebootAttempts < MAST_REBOOT_MAX_ATTEMPTS)
     {
         Serial.println();
         Serial.println("*** Reboot not verified - arming retry ***");
@@ -1148,22 +1148,22 @@ void handleOutdoorReboot()
         // Don't transmit here.
         // Wait for the next valid OUT packet.
         //
-        waitingForOutdoorReturn = false;
-        outdoorRebootArmed = true;
+        waitingForMastReturn = false;
+        MastRebootArmed = true;
     }
     else
     {
         Serial.println();
         Serial.println("************************************************");
-        Serial.println("*** OUTDOOR REBOOT FAILED AFTER 3 ATTEMPTS   ***");
+        Serial.println("*** MAST REBOOT FAILED AFTER 3 ATTEMPTS      ***");
         Serial.println("************************************************");
         Serial.println();
 
-        outdoorRebootPending = false;
-        outdoorRebootAckReceived = false;
-        waitingForOutdoorReturn = false;
-        outdoorRebootArmed = false;
-        outdoorRebootAttempts = 0;
+        MastRebootPending = false;
+        MastRebootAckReceived = false;
+        waitingForMastReturn = false;
+        MastRebootArmed = false;
+        MastRebootAttempts = 0;
     }
 }
 
@@ -1205,7 +1205,7 @@ void parseLoRaPacket(const String &payload) {
         return;
     }
 
-    outdoorRebootRequested = false;   
+    MastRebootRequested = false;   
 
     outWindSpeedMPH =
         payload.substring(0, p1).toFloat();
@@ -1233,51 +1233,51 @@ void parseLoRaPacket(const String &payload) {
         payload.substring(p6 + 1).toInt();
 
     Serial.println();
-    Serial.print("Outdoor Uptime: ");
+    Serial.print("Mast Uptime: ");
     Serial.print(outUptimeSec);
     Serial.println(" sec");
 
     Serial.print("Packet Age: ");
-    Serial.print((millis() - lastOutdoorPacketMillis) / 1000);
+    Serial.print((millis() - lastMastPacketMillis) / 1000);
     Serial.println(" sec");
     Serial.println();
 
-    Serial.println("*** Outdoor data updated ***");
+    Serial.println("*** Mast data updated ***");
 
-    lastOutdoorData = millis();
+    lastMastData = millis();
     lastLoRaUpdate = millis();
-    lastOutdoorPacketMillis = millis();
+    lastMastPacketMillis = millis();
 
-    if (outdoorDataStale) {
+    if (MastDataStale) {
         Serial.println("*** LoRa communication restored ***");
     }
 
-    outdoorDataStale = false;
+    MastDataStale = false;
 
     //
     // Have we already sent at least one reboot request?
     //
     // If so, a low C3 uptime is definitive evidence
-    // that the outdoor C3 actually restarted.
+    // that the Mast C3 actually restarted.
     //
-    if (outdoorRebootPending &&
-        outdoorRebootAttempts > 0 &&
-        outUptimeSec < OUTDOOR_REBOOT_UPTIME_LIMIT)
+    if (MastRebootPending &&
+        MastRebootAttempts > 0 &&
+        outUptimeSec < MAST_REBOOT_UPTIME_LIMIT)
     {
         Serial.println();
         Serial.println("************************************************");
-        Serial.println("*** Outdoor reboot VERIFIED by uptime        ***");
-        Serial.print  ("*** Outdoor uptime = ");
+        Serial.println("*** Mast reboot VERIFIED by uptime           ***");
+        Serial.print  ("*** Mast uptime = ");
         Serial.print(outUptimeSec);
         Serial.println(" sec");
         Serial.println("************************************************");
         Serial.println();
 
-        outdoorRebootPending = false;
-        outdoorRebootAckReceived = false;
-        waitingForOutdoorReturn = false;
-        outdoorRebootArmed = false;
-        outdoorRebootAttempts = 0;
+        MastRebootPending = false;
+        MastRebootAckReceived = false;
+        waitingForMastReturn = false;
+        MastRebootArmed = false;
+        MastRebootAttempts = 0;
 
         return;
     }    
@@ -1289,12 +1289,12 @@ void parseLoRaPacket(const String &payload) {
     // OUT packet. Send the reboot command now while the C3
     // has just finished transmitting.
     //
-    if (outdoorRebootPending && outdoorRebootArmed)
+    if (MastRebootPending && MastRebootArmed)
     {
         Serial.println();
         Serial.println("*** Valid OUT received - sending reboot now ***");
 
-        sendOutdoorRebootNow();
+        sendMastRebootNow();
     }
 }
 
@@ -1335,11 +1335,11 @@ void processLoRaPayload(const String &line)
     if (line.indexOf("<REBOOTING>") >= 0)
     {
         Serial.println();
-        Serial.println("Outdoor node acknowledged reboot");
+        Serial.println("MaSt node acknowledged reboot");
         Serial.println();
 
-        outdoorRebootAckReceived = true;
-        waitingForOutdoorReturn = true;
+        MastRebootAckReceived = true;
+        waitingForMastReturn = true;
 
         return;
     }
@@ -1643,16 +1643,16 @@ void sendWeatherPacketToESP32S3() {
     Serial.print(dt.second());
     Serial.println();
 
-    unsigned long age = millis() - lastOutdoorData;
+    unsigned long age = millis() - lastMastData;
 
-    Serial.print("Age of outdoor data = ");
+    Serial.print("Age of Mast data = ");
     Serial.print(age);
     Serial.println(" ms");
 
     if (age > 15000) {
-        Serial.println("No outdoor data.");
+        Serial.println("No Mast data.");
     } else {
-        Serial.println("Outdoor data received.");
+        Serial.println("Mast data received.");
     }
 
     Serial1.print("TEMP:");
@@ -1714,42 +1714,42 @@ void sendWeatherPacketToESP32S3() {
     Serial1.println();
 }
 
-void requestOutdoorReboot()
+void requestMastReboot()
 {
-    if (outdoorRebootPending) {
-        Serial.println("*** Outdoor reboot already in progress ***");
+    if (MastRebootPending) {
+        Serial.println("*** Mast reboot already in progress ***");
         return;
     }
 
-    outdoorRebootPending = true;
-    outdoorRebootAckReceived = false;
-    waitingForOutdoorReturn = false;
-    outdoorRebootArmed = true;
+    MastRebootPending = true;
+    MastRebootAckReceived = false;
+    waitingForMastReturn = false;
+    MastRebootArmed = true;
 
-    outdoorRebootAttempts = 0;
+    MastRebootAttempts = 0;
 
     Serial.println();
     Serial.println("************************************************");
-    Serial.println("*** Outdoor reboot requested                 ***");
+    Serial.println("*** Mast reboot requested                    ***");
     Serial.println("*** Waiting for next OUT packet to send it   ***");
     Serial.println("************************************************");
     Serial.println();
 }
 
-void sendOutdoorRebootNow()
+void sendMastRebootNow()
 {
-    outdoorRebootAttempts++;
+    MastRebootAttempts++;
 
     sendLoRaPacket("<REBOOT>");
 
-    outdoorRebootSentAt = millis();
+    MastRebootSentAt = millis();
 
-    waitingForOutdoorReturn = true;
-    outdoorRebootArmed = false;
+    waitingForMastReturn = true;
+    MastRebootArmed = false;
 
     Serial.println();
-    Serial.print("*** Outdoor reboot sent just after OUT - attempt ");
-    Serial.print(outdoorRebootAttempts);
+    Serial.print("*** Mast reboot sent just after OUT - attempt ");
+    Serial.print(MastRebootAttempts);
     Serial.println(" ***");
     Serial.println();
 }
@@ -1757,7 +1757,7 @@ void sendOutdoorRebootNow()
 void loop() {
 
     handleLoRaSerial2();
-    handleOutdoorReboot();
+    handleMastReboot();
 
     static unsigned long lastReport = 0;
 
@@ -1777,25 +1777,25 @@ void loop() {
 
     if (millis() - lastLoRaUpdate > 30000) {  // 30 seconds
 
-        if (!outdoorDataStale) {
+        if (!MastDataStale) {
             Serial.println("************************************************");
-            Serial.println("*** LoRa timeout: No outdoor update in 30 sec ***");
+            Serial.println("*** LoRa timeout: No Mast update in 30 sec   ***");
             Serial.println("************************************************");
         }
 
-        outdoorDataStale = true;
+        MastDataStale = true;
     }
 
     if ((millis() - lastLoRaUpdate > 60000UL) &&
-        !outdoorRebootRequested)
+        !MastRebootRequested)
     {
         Serial.println();
-        Serial.println("*** Outdoor node appears stuck ***");
+        Serial.println("*** Mast node appears stuck ***");
         Serial.println("*** Sending reboot request ***");
 
-        requestOutdoorReboot();
+        requestMastReboot();
 
-        outdoorRebootRequested = true;
+        MastRebootRequested = true;
     }
 
     // Ask for status only if we've been stale for a while
@@ -1805,7 +1805,7 @@ void loop() {
         sendLoRaPacket("<STATUS?>");
         lastStatusRequest = millis();
 
-        Serial.println("Requesting outdoor status...");
+        Serial.println("Requesting Mast status...");
     }
 
     int b = readButton();
@@ -1816,7 +1816,7 @@ void loop() {
     // Reset stuff when the day changes (midnight):
     if (now.day() != lastDay) {
         resetMinMax();
-        requestOutdoorReboot();
+        requestMastReboot();
         lastDay = now.day();
     }
 
@@ -1935,9 +1935,9 @@ void loop() {
                     if (settingsIndex == 4) { toggleBacklight(); lcd.clear(); lcd.print(backlightOn ? "Backlight ON" : "Backlight OFF"); }
                     if (settingsIndex == 5) editAltitude();
                     if (settingsIndex == 6) {
-                        requestOutdoorReboot();
+                        requestMastReboot();
                         lcd.clear();
-                        lcd.print("Outdoor");
+                        lcd.print("Mast");
                         lcd.setCursor(0, 1);
                         lcd.print("Reboot Sent");
                     }
