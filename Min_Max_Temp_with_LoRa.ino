@@ -1534,6 +1534,9 @@ void setup() {
         Serial.println("SHT31 initialized.");
     }
 
+    Serial.print("BMP Sensor ID: 0x");
+    Serial.println(bmp.sensorID(), HEX);
+
     if (!rtc.begin()) {
         lcd.clear();
         lcd.print("RTC FAIL");
