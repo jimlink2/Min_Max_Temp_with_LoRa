@@ -80,6 +80,9 @@ unsigned long lastStatusRequest = 0;
 int menuIndex = 0;
 unsigned long lastRefresh = 0;
 
+// DST state
+bool dstEnabled = false;
+
 enum MenuId {
     MENU_SUPER,
     MENU_WIND,
@@ -179,6 +182,7 @@ uint8_t lastReset_D = 99;
 #define EE_LAST_RESET_M    521
 #define EE_LAST_RESET_MO   522
 #define EE_LAST_RESET_D    523
+#define EE_DST_FLAG        524
 
 // Backlight state
 bool backlightOn = true;
@@ -620,7 +624,7 @@ void showButtonTest(int b) {
 }
 
 int settingsIndex = 0;
-const int settingsCount = 7;
+const int settingsCount = 8;
 
 void showSettingsMenu() {
     lcd.clear();
@@ -635,6 +639,7 @@ void showSettingsMenu() {
     if (settingsIndex == 4) lcd.print(">Toggle Backlite");
     if (settingsIndex == 5) lcd.print(">Set Altitude");
     if (settingsIndex == 6) lcd.print(">Reboot Mast");
+    if (settingsIndex == 7) lcd.print(">DST Settings");
 }
 
 void resetMinMax() {
@@ -1025,6 +1030,58 @@ void editAltitude() {
             delay(1500);
 
             showSettingsMenu();
+            return;
+        }
+
+        delay(50);
+    }
+}
+
+void editDST()
+{
+    // Wait for operator to release SELECT
+    while (readButton() != -1)
+    {
+        delay(10);
+    }
+
+    while (true)
+    {
+        lcd.clear();
+
+        lcd.setCursor(0,0);
+
+        if (dstEnabled)
+            lcd.print("DST: ON");
+        else
+            lcd.print("DST: OFF");
+
+        lcd.setCursor(0,1);
+
+        if (dstEnabled)
+            lcd.print("SEL=Disable");
+        else
+            lcd.print("SEL=Enable");
+
+        int b = readButton();
+
+        if (b == 4)   // SELECT
+        {
+            toggleDST();
+
+            lcd.clear();
+
+            if (dstEnabled)
+                lcd.print("DST Enabled");
+            else
+                lcd.print("DST Disabled");
+
+            delay(1500);
+            return;
+        }
+
+        if (b == 3)   // LEFT
+        {
             return;
         }
 
@@ -1452,6 +1509,30 @@ void handleLoRaSerial2()
     }
 }
 
+void saveDSTFlag()
+{
+    byte dstByte = dstEnabled ? 1 : 0;
+    EEPROM.put(EE_DST_FLAG, dstByte);
+}
+
+void toggleDST()
+{
+    DateTime now = rtc.now();
+
+    if (dstEnabled)
+    {
+        rtc.adjust(now - TimeSpan(0,1,0,0));
+        dstEnabled = false;
+    }
+    else
+    {
+        rtc.adjust(now + TimeSpan(0,1,0,0));
+        dstEnabled = true;
+    }
+
+    saveDSTFlag();
+}
+
 void setup() {
     delay(2000);  // wait 2 seconds before sending first WX packet
 
@@ -1543,6 +1624,9 @@ void setup() {
         while (1);
     }
 
+    // UNCOMMENT below to reset the RTC time. Then upload the sketch.
+    //rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+
     if (rtc.lostPower()) {
         lcd.clear();
         lcd.print("RTC BEING RESET");
@@ -1554,6 +1638,10 @@ void setup() {
     EEPROM.get(EE_LAST_RESET_M,  lastReset_m);
     EEPROM.get(EE_LAST_RESET_MO, lastReset_M);
     EEPROM.get(EE_LAST_RESET_D,  lastReset_D);
+
+    byte dstByte = 0;
+    EEPROM.get(EE_DST_FLAG, dstByte);
+    dstEnabled = (dstByte == 1);
 
     EEPROM.get(EE_RESET_FLAG, resetFlag);
 
@@ -1940,6 +2028,11 @@ void loop() {
                         lcd.print("Mast");
                         lcd.setCursor(0, 1);
                         lcd.print("Reboot Sent");
+                    }
+                    if (settingsIndex == 7)
+                    {
+                        editDST();
+                        showSettingsMenu();
                     }
                 }
 
